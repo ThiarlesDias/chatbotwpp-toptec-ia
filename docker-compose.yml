@@ -1,0 +1,31 @@
+services:
+  chatbotwpp:
+    build: .
+    container_name: chatbotwpp-vm
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      LMSTUDIO_URL: http://host.docker.internal:1234/v1
+    volumes:
+      - ./auth:/app/auth
+      - ./data:/app/data
+      - whisper-cache:/root/.cache/huggingface
+    depends_on:
+      - ollama
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: chatbotwpp-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  ollama:
+  whisper-cache:
