@@ -55,11 +55,40 @@ test('servico do whats responde automacao WhatsApp, nao lista geral', () => {
   assert.doesNotMatch(reply, /Desenvolvimento de Sites/);
 });
 
+test('interpreta servico do WhatsApp com grafia errada', () => {
+  const reply = getCatalogReply('serviso do wats', baseOptions);
+
+  assert.match(reply, /Automacao WhatsApp/);
+  assert.match(reply, /perguntas frequentes/);
+  assert.doesNotMatch(reply, /Desenvolvimento de Sites/);
+});
+
 test('whats sozinho aponta para automacao WhatsApp', () => {
   const reply = getCatalogReply('whats', baseOptions);
 
   assert.match(reply, /Automacao WhatsApp/);
   assert.match(reply, /integrar o WhatsApp/);
+});
+
+test('interpreta site escrito errado', () => {
+  const reply = getCatalogReply('voces fais saite?', baseOptions);
+
+  assert.match(reply, /Desenvolvimento de Sites/);
+  assert.match(reply, /responsivo/);
+});
+
+test('interpreta estoque escrito errado', () => {
+  const reply = getCatalogReply('sistema de estoki', baseOptions);
+
+  assert.match(reply, /CRM e Controle de Estoque/);
+  assert.match(reply, /produtos/);
+});
+
+test('interpreta marketing escrito errado', () => {
+  const reply = getCatalogReply('quero markting', baseOptions);
+
+  assert.match(reply, /Marketing Digital/);
+  assert.match(reply, /gerar demanda|leads|campanhas/);
 });
 
 test('apenas responder usa o ultimo topico sem vazar bastidor', () => {

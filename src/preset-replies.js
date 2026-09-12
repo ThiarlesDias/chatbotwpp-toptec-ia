@@ -1,3 +1,5 @@
+import { hasLoosePhrase, hasLooseTerm, normalizeText } from './text-match.js';
+
 export function getPresetReply(text, companyName, options = {}) {
   const normalized = normalizeText(text);
   const name = options.customerName;
@@ -47,35 +49,55 @@ export function shouldNotifyAdmin(text) {
 }
 
 function isGreeting(normalized) {
-  return /^(oi|ola|opa|bom dia|boa tarde|boa noite|e ai|salve)(\s|$)/.test(normalized);
+  return /^(oi|ola|opa|bom dia|boa tarde|boa noite|e ai|salve|bomdia|boatarde|boanoite)(\s|$)/.test(normalized);
 }
 
 function isIdentityQuestion(normalized) {
-  return /\bquem (e|eh) (vc|voce|tu)\b|\b(voce|vc|tu) (e|eh) quem\b|\bqual (e|eh) seu nome\b|\b(o que|oq|que) (vc|voce|tu) (e|eh)\b/.test(normalized);
+  return (
+    /\bquem (e|eh) (vc|voce|tu)\b/.test(normalized) ||
+    /\b(voce|vc|tu) (e|eh) quem\b/.test(normalized) ||
+    /\bqual (e|eh) seu nome\b/.test(normalized) ||
+    /\b(o que|oq|que) (vc|voce|tu) (e|eh)\b/.test(normalized) ||
+    hasLoosePhrase(normalized, 'quem e voce') ||
+    hasLoosePhrase(normalized, 'quem e vc') ||
+    hasLoosePhrase(normalized, 'qual e seu nome')
+  );
 }
 
 function isBudgetRequest(normalized) {
-  return /\borcamento\b|\bpreco\b|\bvalor\b|\bquanto custa\b|\bcontratar\b|\bfechar\b/.test(normalized);
+  return (
+    /\borcamento\b|\bpreco\b|\bvalor\b|\bquanto custa\b|\bcontratar\b|\bfechar\b/.test(normalized) ||
+    hasLooseTerm(normalized, ['orcamento', 'orsamento', 'orcameto', 'orcamento', 'preco', 'preso', 'valor', 'valores', 'contratar', 'fechar']) ||
+    hasLoosePhrase(normalized, 'quanto custa')
+  );
 }
 
 function isProductQuestion(normalized) {
-  return /\bproduto(s)?\b|\bloja\b|\bcomprar\b|\bcarregador\b|\bfone\b|\bsmartwatch\b|\bcontrole\b|\bconsole\b/.test(normalized);
+  return (
+    /\bproduto(s)?\b|\bloja\b|\bcomprar\b|\bcarregador\b|\bfone\b|\bsmartwatch\b|\bcontrole\b|\bconsole\b/.test(normalized) ||
+    hasLooseTerm(normalized, ['produto', 'produtos', 'prodto', 'prodtos', 'loja', 'comprar', 'carregador', 'fone', 'smartwatch', 'controle', 'console'])
+  );
 }
 
 function getServiceHint(normalized) {
-  if (/\bsite(s)?\b|\blanding\b|\bloja virtual\b|\bcatalogo\b/.test(normalized)) return 'site';
-  if (/\bapp(s)?\b|\baplicativo\b/.test(normalized)) return 'aplicativo';
-  if (/\bwhatsapp\b|\bwpp\b|\brobo\b|\bchatbot\b|\bautomacao\b/.test(normalized)) return 'automacao WhatsApp';
-  if (/\bmarketing\b|\banuncio\b|\bcampanha\b|\btrafego\b/.test(normalized)) return 'marketing digital';
-  if (/\binfra\b|\binfraestrutura\b|\brede\b|\bservidor\b|\bcomputador\b/.test(normalized)) return 'infraestrutura de TI';
-  if (/\bconsultoria\b|\bdiagnostico\b/.test(normalized)) return 'consultoria em TI';
-  if (/\bcrm\b|\bestoque\b|\btopgestor\b|\bpedido\b/.test(normalized)) return 'CRM e controle de estoque';
+  if (/\bsite(s)?\b|\blanding\b|\bloja virtual\b|\bcatalogo\b/.test(normalized) || hasLooseTerm(normalized, ['site', 'sites', 'sait', 'saite', 'pagina', 'catalogo'])) return 'site';
+  if (/\bapp(s)?\b|\baplicativo\b/.test(normalized) || hasLooseTerm(normalized, ['app', 'aplicativo', 'aplicatvo', 'aplcativo'])) return 'aplicativo';
+  if (/\bwhatsapp\b|\bwpp\b|\brobo\b|\bchatbot\b|\bautomacao\b/.test(normalized) || hasLooseTerm(normalized, ['whatsapp', 'whats', 'wats', 'zap', 'wpp', 'robo', 'chatbot', 'automacao'])) return 'automacao WhatsApp';
+  if (/\bmarketing\b|\banuncio\b|\bcampanha\b|\btrafego\b/.test(normalized) || hasLooseTerm(normalized, ['marketing', 'markting', 'mkt', 'anuncio', 'campanha', 'trafego'])) return 'marketing digital';
+  if (/\binfra\b|\binfraestrutura\b|\brede\b|\bservidor\b|\bcomputador\b/.test(normalized) || hasLooseTerm(normalized, ['infra', 'infraestrutura', 'rede', 'servidor', 'computador'])) return 'infraestrutura de TI';
+  if (/\bconsultoria\b|\bdiagnostico\b/.test(normalized) || hasLooseTerm(normalized, ['consultoria', 'consutoria', 'diagnostico'])) return 'consultoria em TI';
+  if (/\bcrm\b|\bestoque\b|\btopgestor\b|\bpedido\b/.test(normalized) || hasLooseTerm(normalized, ['crm', 'estoque', 'estoq', 'estoqui', 'topgestor', 'pedido'])) return 'CRM e controle de estoque';
 
   return '';
 }
 
 function isHumanRequest(normalized) {
-  return /\bfalar com atendente\b|\bfalar com humano\b|\batendente humano\b|\bsuporte humano\b/.test(normalized);
+  return (
+    /\bfalar com atendente\b|\bfalar com humano\b|\batendente humano\b|\bsuporte humano\b/.test(normalized) ||
+    hasLoosePhrase(normalized, 'falar com atendente') ||
+    hasLoosePhrase(normalized, 'falar com humano') ||
+    hasLooseTerm(normalized, ['atendente', 'atedente', 'humano', 'alguem'])
+  );
 }
 
 function isConfusionReaction(normalized) {
@@ -89,14 +111,4 @@ function isDoneOrNegative(normalized) {
 
 function isOnlyQuestionMarks(text) {
   return /^\s*\?+\s*$/.test(String(text || ''));
-}
-
-function normalizeText(text) {
-  return String(text || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s?]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }

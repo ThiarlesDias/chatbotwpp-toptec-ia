@@ -33,6 +33,13 @@ test('orcamento de servico coleta dados para o admin', () => {
   assert.match(reply, /admin da TOPTEC DIGITAL/);
 });
 
+test('interpreta orcamento escrito errado', () => {
+  const reply = getPresetReply('qero orsamento de saite', 'TOPTEC DIGITAL', options);
+
+  assert.match(reply, /valor de site depende do escopo/);
+  assert.match(reply, /melhor horario/);
+});
+
 test('preco de produto aponta para a loja oficial', () => {
   const reply = getPresetReply('qual preco do carregador?', 'TOPTEC DIGITAL', options);
 
@@ -44,6 +51,18 @@ test('pedido de humano informa telefone ativo', () => {
   const reply = getPresetReply('falar com atendente', 'TOPTEC DIGITAL', options);
 
   assert.match(reply, /43991939187/);
+});
+
+test('interpreta atendente escrito errado', () => {
+  const reply = getPresetReply('falar com atedente', 'TOPTEC DIGITAL', options);
+
+  assert.match(reply, /43991939187/);
+});
+
+test('interpreta pergunta de identidade escrita errado', () => {
+  const reply = getPresetReply('qem e vc?', 'TOPTEC DIGITAL', options);
+
+  assert.match(reply, /Charlie, robo da TOPTEC DIGITAL/);
 });
 
 test('reacao de confusao nao cai na IA local', () => {

@@ -1,3 +1,5 @@
+import { hasLoosePhrase, hasLooseTerm, normalizeText } from './text-match.js';
+
 const SERVICE_CATALOG = [
   {
     id: 'sites',
@@ -18,6 +20,20 @@ const SERVICE_CATALOG = [
       /\bloja virtual\b/,
       /\becommerce\b/,
       /\be commerce\b/
+    ],
+    aliases: [
+      'site',
+      'sites',
+      'sait',
+      'saite',
+      'website',
+      'web site',
+      'pagina',
+      'paginas',
+      'landing',
+      'catalogo',
+      'loja virtual',
+      'ecommerce'
     ]
   },
   {
@@ -37,6 +53,17 @@ const SERVICE_CATALOG = [
       /\bandroid\b/,
       /\bios\b/,
       /\bmobile\b/
+    ],
+    aliases: [
+      'app',
+      'apps',
+      'aplicativo',
+      'aplicativos',
+      'aplicatvo',
+      'aplcativo',
+      'mobile',
+      'android',
+      'ios'
     ]
   },
   {
@@ -64,6 +91,32 @@ const SERVICE_CATALOG = [
       /\bautomacao\b/,
       /\batendimento automatico\b/,
       /\bmensagem automatica\b/
+    ],
+    aliases: [
+      'whatsapp',
+      'whats',
+      'wats',
+      'watts',
+      'whatsap',
+      'watsapp',
+      'watzap',
+      'whatzap',
+      'zap',
+      'zapzap',
+      'wpp',
+      'robo',
+      'robos',
+      'bot',
+      'bots',
+      'chatbot',
+      'chatbots',
+      'ia',
+      'automacao',
+      'altomacao',
+      'automatizar',
+      'automatico',
+      'atendimento automatico',
+      'mensagem automatica'
     ]
   },
   {
@@ -87,6 +140,23 @@ const SERVICE_CATALOG = [
       /\binstagram\b/,
       /\blead(s)?\b/,
       /\bvenda(s)? online\b/
+    ],
+    aliases: [
+      'marketing',
+      'markting',
+      'mkt',
+      'anuncio',
+      'anuncios',
+      'campanha',
+      'campanhas',
+      'trafego',
+      'trafefo',
+      'google',
+      'facebook',
+      'instagram',
+      'insta',
+      'lead',
+      'leads'
     ]
   },
   {
@@ -109,6 +179,20 @@ const SERVICE_CATALOG = [
       /\bti\b/,
       /\binternet\b/,
       /\bequipamento(s)?\b/
+    ],
+    aliases: [
+      'infra',
+      'infraestrutura',
+      'infrastrutura',
+      'rede',
+      'redes',
+      'servidor',
+      'servidores',
+      'computador',
+      'computadores',
+      'internet',
+      'equipamento',
+      'equipamentos'
     ]
   },
   {
@@ -131,6 +215,19 @@ const SERVICE_CATALOG = [
       /\bmelhoria(s)?\b/,
       /\bescolher\b/,
       /\bgastar certo\b/
+    ],
+    aliases: [
+      'consultoria',
+      'consutoria',
+      'consultora',
+      'avaliacao',
+      'avaliar',
+      'diagnostico',
+      'seguranca',
+      'processo',
+      'processos',
+      'melhoria',
+      'melhorias'
     ]
   },
   {
@@ -153,6 +250,21 @@ const SERVICE_CATALOG = [
       /\bpedido(s)?\b/,
       /\bordem de servico\b/,
       /\bfinanceiro\b/
+    ],
+    aliases: [
+      'crm',
+      'estoque',
+      'estoq',
+      'estoqui',
+      'topgestor',
+      'top gestor',
+      'gestor',
+      'cliente',
+      'clientes',
+      'pedido',
+      'pedidos',
+      'ordem de servico',
+      'financeiro'
     ]
   }
 ];
@@ -169,6 +281,63 @@ const FEATURED_PRODUCT_EXAMPLES = [
   'smartwatch',
   'alto-falante para computador',
   'organizador de ferramentas'
+];
+
+const SERVICE_OVERVIEW_TERMS = [
+  'servico',
+  'servicos',
+  'serviso',
+  'servisos',
+  'servisso',
+  'servissos',
+  'fazem',
+  'fasem',
+  'fais',
+  'faz',
+  'trabalham',
+  'trabalho'
+];
+
+const GENERIC_INTENT_TERMS = new Set([
+  'servico',
+  'servicos',
+  'serviso',
+  'servisos',
+  'servisso',
+  'servissos',
+  'produto',
+  'produtos',
+  'prodto',
+  'prodtos',
+  'faz',
+  'fais',
+  'fazem',
+  'fasem',
+  'voces',
+  'vcs',
+  'voce',
+  'vc'
+]);
+
+const PRODUCT_TERMS = [
+  'produto',
+  'produtos',
+  'prodto',
+  'prodtos',
+  'loja',
+  'comprar',
+  'vende',
+  'vendem',
+  'acessorio',
+  'acessorios',
+  'audio',
+  'games',
+  'informatica',
+  'smartwatch',
+  'carregador',
+  'fone',
+  'controle',
+  'console'
 ];
 
 const POSITIVE_FOLLOW_UP = /^(sim|quero|pode|pode sim|isso|isso mesmo|me explica|explica|fala mais|me fala mais|detalhe|detalhes)$/;
@@ -305,7 +474,12 @@ function buildProductsReply({ greeting, companyName, siteUrl }) {
 }
 
 function findService(normalized) {
-  return SERVICE_CATALOG.find((service) => service.keywords.some((pattern) => pattern.test(normalized))) || null;
+  const fuzzyText = stripGenericIntentTerms(normalized);
+
+  return SERVICE_CATALOG.find((service) => (
+    service.keywords.some((pattern) => pattern.test(normalized)) ||
+    hasLooseTerm(fuzzyText, service.aliases || [])
+  )) || null;
 }
 
 function getServiceById(id) {
@@ -316,6 +490,10 @@ function wantsServicesOverview(normalized) {
   return (
     /^(servico|servicos)$/.test(normalized) ||
     /\bservico(s)?\b/.test(normalized) ||
+    hasLooseTerm(normalized, SERVICE_OVERVIEW_TERMS) ||
+    hasLoosePhrase(normalized, 'o que voces fazem') ||
+    hasLoosePhrase(normalized, 'o que vcs fazem') ||
+    hasLoosePhrase(normalized, 'que tipo de servico') ||
     /\bquais servicos\b/.test(normalized) ||
     /\bque servicos\b/.test(normalized) ||
     /\bque tipo de servico/.test(normalized) ||
@@ -331,6 +509,7 @@ function wantsServicesOverview(normalized) {
 
 function wantsProductsOverview(normalized) {
   return (
+    hasLooseTerm(normalized, PRODUCT_TERMS) ||
     /\bproduto(s)?\b/.test(normalized) ||
     /\bloja\b/.test(normalized) ||
     /\bcomprar\b/.test(normalized) ||
@@ -347,23 +526,20 @@ function wantsProductsOverview(normalized) {
 }
 
 function wantsTopGestor(normalized) {
-  return /\btopgestor\b/.test(normalized) || /\btop gestor\b/.test(normalized);
+  return /\btopgestor\b/.test(normalized) || /\btop gestor\b/.test(normalized) || hasLooseTerm(normalized, ['topgestor', 'top gestor']);
 }
 
 function wantsGenericSystem(normalized) {
-  return /\bsistema(s)?\b/.test(normalized) && !findService(normalized);
+  return (/\bsistema(s)?\b/.test(normalized) || hasLooseTerm(normalized, ['sistema', 'sistemas', 'sitema', 'sistena'])) && !findService(normalized);
 }
 
 function buildGreeting(name) {
   return name ? `${name}, ` : '';
 }
 
-function normalizeText(text) {
-  return String(text || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s?]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+function stripGenericIntentTerms(normalized) {
+  return normalizeText(normalized)
+    .split(/\s+/)
+    .filter((token) => !GENERIC_INTENT_TERMS.has(token))
+    .join(' ');
 }

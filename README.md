@@ -149,6 +149,18 @@ quanto custa um site?
 falar com atendente
 ```
 
+Teste tambem com erros comuns de digitacao:
+
+```text
+qem e vc?
+serviso do wats
+voces fais saite?
+sistema de estoki
+qero orsamento de saite
+falar com atedente
+quero markting
+```
+
 Teste tambem audio dizendo:
 
 ```text
