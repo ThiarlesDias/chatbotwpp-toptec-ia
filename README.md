@@ -88,7 +88,7 @@ Configuracao no `.env`:
 
 ```env
 TRANSCRIBE_AUDIO=true
-WHISPER_MODEL=tiny
+WHISPER_MODEL=base
 WHISPER_LANGUAGE=pt
 TRANSCRIBE_TIMEOUT_MS=120000
 ```
@@ -101,7 +101,7 @@ Para testar se a transcricao esta instalada dentro do container:
 docker exec -it chatbotwpp-vm python3 -c "from faster_whisper import WhisperModel; print('whisper ok')"
 ```
 
-Se a VM tiver mais memoria/CPU, troque `WHISPER_MODEL=tiny` por `base` para melhorar a precisao.
+Se a VM ficar lenta, troque `WHISPER_MODEL=base` por `tiny` para reduzir consumo, com menor precisao.
 
 ## Usando com LM Studio
 

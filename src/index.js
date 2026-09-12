@@ -3,20 +3,16 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   useMultiFileAuthState
 } from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
 import Pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { Boom } from '@hapi/boom';
 import { askLocalAi } from './ai.js';
-import { appendConversationTurn, getConversation, updateConversation } from './conversation-state.js';
 import { config } from './config.js';
-import { buildCustomerContext } from './customer-context.js';
 import { getMessageText, getMessageType, isGroupMessage } from './message.js';
-import { getConversationTopic, getPresetReply, shouldNotifyAdmin } from './preset-replies.js';
-import { cleanTranscript, looksLikeBadTranscript } from './transcript-cleaner.js';
+import { getPresetReply, shouldNotifyAdmin } from './preset-replies.js';
 import { transcribeAudioMessage } from './transcribe.js';
 
 const logger = Pino({ level: 'silent' });
-const pendingAudioByContact = new Map();
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
@@ -66,24 +62,21 @@ async function startBot() {
         continue;
       }
 
-      const customerName = getCustomerName(message);
-      const messageType = getMessageType(message);
-      let text = getMessageText(message);
-
-      if (messageType === 'audio') {
-        await handleAudioMessage(socket, message, remoteJid, customerName);
-        continue;
-      }
-
-      if (!text) continue;
-
-      await processTextMessage(socket, remoteJid, text, customerName);
+      await handleIncomingMessage(socket, message, remoteJid);
     }
   });
 }
 
-async function processTextMessage(socket, remoteJid, text, customerName) {
-  if (text.length > config.maxInputChars) {
+async function handleIncomingMessage(socket, message, remoteJid) {
+  const customerName = getCustomerName(message);
+  const messageType = getMessageType(message);
+  const input = messageType === 'audio'
+    ? await getAudioText(socket, message, remoteJid, customerName)
+    : { text: getMessageText(message), fromAudio: false };
+
+  if (!input.text) return;
+
+  if (input.text.length > config.maxInputChars) {
     await socket.sendMessage(remoteJid, {
       text: `${customerName ? `${customerName}, ` : ''}mensagem muito longa. Envie ate ${config.maxInputChars} caracteres.`
     });
@@ -92,253 +85,88 @@ async function processTextMessage(socket, remoteJid, text, customerName) {
 
   try {
     await socket.sendPresenceUpdate('composing', remoteJid);
-    const conversation = getConversation(remoteJid);
-    const isFirstContact = !conversation.history?.length;
-    const customerContext = buildCustomerContext(conversation, text, customerName);
-    updateConversation(remoteJid, {
-      customerName,
-      topic: customerContext.topic,
-      profile: customerContext.profile
-    });
-    appendConversationTurn(remoteJid, 'customer', text);
-    const updatedConversation = getConversation(remoteJid);
-    const rawAnswer = getPresetReply(text, config.companyName, {
+
+    const rawAnswer = getPresetReply(input.text, config.companyName, {
       ...config,
+      customerName
+    }) || await askLocalAi(input.text, {
       customerName,
-      conversation: updatedConversation
-    }) || await askLocalAi(text, {
-      customerName,
-      conversation: updatedConversation,
-      profile: customerContext.profile,
-      isFirstContact
+      fromAudio: input.fromAudio
     });
-    const answer = sanitizeBotAnswer(rawAnswer, customerName, text, customerContext.profile);
+
+    const answer = sanitizeAnswer(rawAnswer, customerName, input.text);
     await socket.sendMessage(remoteJid, { text: answer });
-    appendConversationTurn(remoteJid, 'bot', answer);
 
-    const topic = getConversationTopic(text) || updatedConversation.topic;
-    updateConversation(remoteJid, {
-      customerName,
-      lastMessage: text,
-      topic,
-      profile: {
-        ...customerContext.profile,
-        topic
-      }
-    });
-
-    if (shouldNotifyAdmin(text)) {
-      await notifyAdmin(socket, remoteJid, text, customerName, customerContext.profile);
+    if (shouldNotifyAdmin(input.text)) {
+      await notifyAdmin(socket, remoteJid, input.text, customerName);
     }
   } catch (error) {
     console.error('Erro ao responder mensagem:', error);
-    const fallbackConversation = getConversation(remoteJid);
     await socket.sendMessage(remoteJid, {
-      text: buildFallbackReply(customerName, text, fallbackConversation.profile)
+      text: buildSafeFallback(customerName, input.text)
     });
   } finally {
     await socket.sendPresenceUpdate('paused', remoteJid);
   }
 }
 
-async function handleAudioMessage(socket, message, remoteJid, customerName) {
-  const greeting = customerName ? `${customerName}, ` : '';
-
+async function getAudioText(socket, message, remoteJid, customerName) {
   try {
     await socket.sendPresenceUpdate('composing', remoteJid);
     const transcript = await transcribeAudioMessage(message, socket, logger);
 
     if (transcript) {
-      const cleanedTranscript = cleanTranscript(transcript);
       console.log(`Audio transcrito de ${remoteJid}: ${transcript}`);
-
-      if (looksLikeBadTranscript(cleanedTranscript, transcript)) {
-        await askForAudioConfirmation(socket, remoteJid, customerName);
-        return;
-      }
-
-      console.log(`Audio normalizado de ${remoteJid}: ${cleanedTranscript}`);
-      queueAudioTranscript(socket, remoteJid, customerName, cleanedTranscript);
-      return;
+      return { text: transcript, fromAudio: true };
     }
   } catch (error) {
     console.error('Erro ao transcrever audio:', error);
   }
 
-  const reply = `${greeting}recebi seu audio, mas nao consegui transcrever com clareza agora. Me manda em texto rapidinho o que voce precisa? Se for orcamento, envie tambem cidade/bairro, servico desejado e melhor horario para retorno.`;
-
-  appendConversationTurn(remoteJid, 'customer', '[audio recebido sem transcricao]');
-  appendConversationTurn(remoteJid, 'bot', reply);
-  updateConversation(remoteJid, {
-    customerName,
-    lastMessage: '[audio recebido sem transcricao]',
-    profile: {
-      ...getConversation(remoteJid).profile,
-      customerName,
-      stage: 'aguardando texto do audio',
-      lastIntent: 'cliente enviou audio'
-    }
-  });
-
-  await socket.sendMessage(remoteJid, { text: reply });
-}
-
-async function askForAudioConfirmation(socket, remoteJid, customerName) {
   const greeting = customerName ? `${customerName}, ` : '';
-  const reply = `${greeting}acho que nao entendi bem o audio. Voce quis falar com a TOPTEC DIGITAL? Me manda de novo ou escreve rapidinho sua duvida que eu continuo o atendimento.`;
-
-  appendConversationTurn(remoteJid, 'customer', '[audio com transcricao duvidosa]');
-  appendConversationTurn(remoteJid, 'bot', reply);
-  updateConversation(remoteJid, {
-    customerName,
-    lastMessage: '[audio com transcricao duvidosa]',
-    profile: {
-      ...getConversation(remoteJid).profile,
-      customerName,
-      stage: 'confirmando audio',
-      lastIntent: 'audio transcrito com baixa confianca'
-    }
+  await socket.sendMessage(remoteJid, {
+    text: `${greeting}recebi seu audio, mas nao consegui entender com clareza. Pode mandar em texto ou gravar novamente?`
   });
-
-  await socket.sendMessage(remoteJid, { text: reply });
+  return { text: '', fromAudio: true };
 }
 
-function queueAudioTranscript(socket, remoteJid, customerName, transcript) {
-  const existing = pendingAudioByContact.get(remoteJid);
-
-  if (existing?.timer) {
-    clearTimeout(existing.timer);
-  }
-
-  const transcripts = [...(existing?.transcripts || []), transcript].slice(-5);
-  const timer = setTimeout(async () => {
-    pendingAudioByContact.delete(remoteJid);
-    const combinedText = transcripts.join('\n');
-    await processTextMessage(socket, remoteJid, combinedText, customerName);
-  }, config.audioReplyDelayMs);
-
-  pendingAudioByContact.set(remoteJid, {
-    customerName,
-    transcripts,
-    timer
-  });
-}
-
-function buildFallbackReply(customerName, text, profile = {}) {
-  const greeting = customerName ? `${customerName}, ` : '';
-  const normalized = normalizeIncomingText(text);
-
-  if (isBotStatusQuestion(normalized)) {
-    return `${greeting}estou aqui sim. As vezes eu demoro um pouco quando recebo audio ou quando a IA local esta carregando, mas sigo acompanhando a conversa. Me fala o que voce quer testar ou resolver.`;
-  }
-
-  if (isOnlyQuestionMarks(text)) {
-    return `${greeting}acho que minha resposta anterior nao ficou clara. Pode me dizer de novo o que voce queria saber? Se for sobre a ${config.companyName}, posso te explicar servicos, produtos, orcamento ou atendimento.`;
-  }
-
-  if (isGreeting(normalized)) {
-    return `${greeting}tudo bem? Me conta o que voce precisa. Posso conversar contigo e, se fizer sentido, te mostro como a ${config.companyName} pode ajudar com site, sistema, automacao, IA, marketing ou suporte.`;
-  }
-
-  if (isSportsQuestion(normalized)) {
-    return `${greeting}sobre jogo ou placar de hoje, eu nao consigo confirmar em tempo real por aqui. Mas se voce quer divulgar jogos, eventos, agenda, promocao ou atendimento no WhatsApp, a ${config.companyName} pode montar uma pagina ou robo para captar interessados e responder automaticamente.`;
-  }
-
-  if (isToptecSiteQuestion(normalized)) {
-    return `${greeting}pelo site da ${config.companyName}, trabalhamos com desenvolvimento de sites, aplicativos, automacao WhatsApp, marketing digital, infraestrutura de TI, consultoria em TI e CRM/controle de estoque. Tambem temos produtos em categorias como acessorios, audio, games, informatica e smartwatch.`;
-  }
-
-  if (isGeneralQuestion(normalized)) {
-    return `${greeting}posso conversar sobre isso de forma geral, mas se depender de informacao atualizada em tempo real eu preciso confirmar por uma fonte externa. Me diz o contexto que eu tento te orientar e, se couber, vejo como a ${config.companyName} pode transformar isso em site, automacao ou atendimento.`;
-  }
-
-  if (profile?.interest) {
-    return `${greeting}sobre ${profile.interest}, consigo te orientar e encaminhar para orcamento. Me diga o objetivo, cidade/bairro e melhor horario para retorno que eu passo para o admin da ${config.companyName}.`;
-  }
-
-  return `${greeting}me conta melhor o que voce quer fazer ou resolver. Eu consigo conversar contigo e ir entendendo a ideia; quando aparecer uma oportunidade, te mostro como a ${config.companyName} pode ajudar com tecnologia, automacao, IA, site ou suporte.`;
-}
-
-function sanitizeBotAnswer(answer, customerName, text, profile) {
-  const trimmedAnswer = String(answer || '').trim();
-  const normalizedAnswer = answer
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+function sanitizeAnswer(answer, customerName, inputText) {
+  const text = String(answer || '').trim();
+  const normalized = normalize(text);
 
   if (
-    !trimmedAnswer ||
-    trimmedAnswer.length < 8 ||
-    normalizedAnswer.includes('nao posso fornecer informacoes') ||
-    normalizedAnswer.includes('nao tenho informacoes') ||
-    normalizedAnswer.includes('nao tenho informacao') ||
-    normalizedAnswer.includes('nao posso continuar essa conversa') ||
-    normalizedAnswer.includes('conteudo inapropriado') ||
-    normalizedAnswer.includes('nao posso ajudar com isso') ||
-    normalizedAnswer.includes('nao posso responder a essa mensagem') ||
-    normalizedAnswer.includes('nao posso responder essa mensagem') ||
-    normalizedAnswer.includes('nao tenho acesso ao historico') ||
-    normalizedAnswer.includes('sem acesso ao historico') ||
-    normalizedAnswer.includes('nao tenho informacoes sobre o que voce esta pensando') ||
-    normalizedAnswer.includes('nao tenho informacao sobre o que voce esta pensando') ||
-    normalizedAnswer.includes('vou tentar novamente') ||
-    normalizedAnswer.includes('aqui esta uma possivel continuacao') ||
-    normalizedAnswer.includes('cliente:') ||
-    normalizedAnswer.includes('robo:') ||
-    normalizedAnswer.includes('[audio transcrito]') ||
-    normalizedAnswer.includes('perfil/contexto') ||
-    normalizedAnswer.includes('historico recente') ||
-    normalizedAnswer.includes('mensagem atual do cliente') ||
-    normalizedAnswer.includes('nao posso fornecer informacoes sobre o site') ||
-    normalizedAnswer.includes('plataforma principal') ||
-    normalizedAnswer.includes('nossa missao e visao') ||
-    normalizedAnswer.includes('empresas em larga escala') ||
-    normalizedAnswer.includes('empresas de grande escala')
+    !text ||
+    normalized.includes('cliente:') ||
+    normalized.includes('robo:') ||
+    normalized.includes('system prompt') ||
+    normalized.includes('prompt') ||
+    normalized.includes('regras internas') ||
+    normalized.includes('nao posso fornecer informacoes') ||
+    normalized.includes('nao tenho informacoes') ||
+    normalized.includes('nao tenho informacao')
   ) {
-    return buildFallbackReply(customerName, text, profile);
+    return buildSafeFallback(customerName, inputText);
   }
 
-  return trimmedAnswer
-    .replace(/^\s*["']|["']\s*$/g, '')
-    .trim();
+  return text.replace(/^\s*["']|["']\s*$/g, '').trim();
 }
 
-function normalizeIncomingText(text) {
-  return text
-    .replace(/^\[audio transcrito\]\s*/i, '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s?]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+function buildSafeFallback(customerName, inputText) {
+  const greeting = customerName ? `${customerName}, ` : '';
+  const normalized = normalize(inputText);
+
+  if (/^(oi|ola|opa|bom dia|boa tarde|boa noite|e ai|salve)(\s|$)/.test(normalized)) {
+    return `${greeting}tudo bem? Sou o robo da ${config.companyName}. Me conta se voce precisa de produto, servico, orcamento ou suporte.`;
+  }
+
+  if (/\bsite\b|\bservico\b|\bservicos\b|\bsistema\b|\bestoque\b|\bcrm\b|\bwhatsapp\b|\bproduto\b/.test(normalized)) {
+    return `${greeting}posso te ajudar com isso. Pelo site oficial, a ${config.companyName} trabalha com sites, aplicativos, automacao WhatsApp, marketing digital, infraestrutura de TI, consultoria em TI e CRM/controle de estoque. Qual ponto voce quer ver primeiro?`;
+  }
+
+  return `${greeting}posso te ajudar. Me explica em uma frase o que voce precisa, que eu tento orientar e encaminhar para a ${config.companyName} quando fizer sentido.`;
 }
 
-function isGreeting(normalized) {
-  return /^(oi|ola|opa|bom dia|boa tarde|boa noite|e ai|salve)\b/.test(normalized.trim());
-}
-
-function isBotStatusQuestion(normalized) {
-  return /\bmorreu\b|\btravou\b|\bparou\b|\bcaiu\b|\bta ai\b|\besta ai\b|\bresponde\b/.test(normalized);
-}
-
-function isOnlyQuestionMarks(text) {
-  return /^\s*\?+\s*$/.test(text);
-}
-
-function isSportsQuestion(normalized) {
-  return /\bjogo\b|\bjogos\b|\bplacar\b|\blondrina\b|\bfutebol\b|\bpartida\b|\btem jogo\b|\bjogo hoje\b|\bjogo hj\b/.test(normalized);
-}
-
-function isToptecSiteQuestion(normalized) {
-  return /\btoptec\b|\btop tec\b|\bsite\b|\bservicos\b|\bprodutos\b|\bsistema\b|\bestoque\b|\bcrm\b/.test(normalized);
-}
-
-function isGeneralQuestion(normalized) {
-  return /\?$|\bcomo\b|\bpor que\b|\bporque\b|\bqual\b|\bquais\b|\bquando\b|\bonde\b|\bquem\b|\bo que\b|\bquanto\b|\bqunto\b/.test(normalized.trim());
-}
-
-async function notifyAdmin(socket, customerJid, text, customerName, profile = {}) {
+async function notifyAdmin(socket, customerJid, text, customerName) {
   const adminJid = toBrazilianWhatsappJid(config.adminPhone);
   const customerPhone = customerJid.split('@')[0];
 
@@ -347,23 +175,30 @@ async function notifyAdmin(socket, customerJid, text, customerName, profile = {}
       `Novo pedido de orcamento pelo robo da ${config.companyName}.`,
       `Cliente: ${customerName || 'Nome nao informado pelo WhatsApp'}`,
       `WhatsApp: +${customerPhone}`,
-      profile.interest ? `Interesse: ${profile.interest}` : null,
-      profile.stage ? `Etapa: ${profile.stage}` : null,
       `Mensagem: ${text}`
-    ].filter(Boolean).join('\n')
+    ].join('\n')
   });
 }
 
 function getCustomerName(message) {
   const name = message.pushName || message.verifiedBizName || '';
-  const cleaned = String(name).replace(/\s+/g, ' ').trim();
-  return cleaned.length > 40 ? cleaned.slice(0, 40).trim() : cleaned;
+  return String(name).replace(/\s+/g, ' ').trim().slice(0, 40);
 }
 
 function toBrazilianWhatsappJid(phone) {
   const digits = String(phone).replace(/\D/g, '');
   const withCountry = digits.startsWith('55') ? digits : `55${digits}`;
   return `${withCountry}@s.whatsapp.net`;
+}
+
+function normalize(text) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 startBot().catch((error) => {
