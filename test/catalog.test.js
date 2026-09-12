@@ -47,6 +47,32 @@ test('responde sobre robo de WhatsApp sem inventar produto fora do site', () => 
   assert.match(reply, /atendimento humano/);
 });
 
+test('servico do whats responde automacao WhatsApp, nao lista geral', () => {
+  const reply = getCatalogReply('servico do whats', baseOptions);
+
+  assert.match(reply, /Automacao WhatsApp/);
+  assert.match(reply, /perguntas frequentes/);
+  assert.doesNotMatch(reply, /Desenvolvimento de Sites/);
+});
+
+test('whats sozinho aponta para automacao WhatsApp', () => {
+  const reply = getCatalogReply('whats', baseOptions);
+
+  assert.match(reply, /Automacao WhatsApp/);
+  assert.match(reply, /integrar o WhatsApp/);
+});
+
+test('apenas responder usa o ultimo topico sem vazar bastidor', () => {
+  const reply = getCatalogReply('apenas responder', {
+    ...baseOptions,
+    lastTopic: 'whatsapp'
+  });
+
+  assert.match(reply, /direto ao ponto/);
+  assert.match(reply, /Automacao WhatsApp/);
+  assert.doesNotMatch(reply, /Mensagem do cliente|Robo:|sugestao/i);
+});
+
 test('responde sobre estoque pelo CRM e TopGestor', () => {
   const reply = getCatalogReply('sistema de estoque', baseOptions);
 

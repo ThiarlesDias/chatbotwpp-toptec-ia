@@ -52,6 +52,10 @@ const SERVICE_CATALOG = [
     qualify: 'Hoje voce quer automatizar respostas, captar leads ou integrar o WhatsApp com planilha, CRM, site ou loja?',
     keywords: [
       /\bwhatsapp\b/,
+      /\bwhats\b/,
+      /\bwhats app\b/,
+      /\bzap\b/,
+      /\bzapzap\b/,
       /\bwpp\b/,
       /\brobo(s)?\b/,
       /\bbot(s)?\b/,
@@ -168,6 +172,7 @@ const FEATURED_PRODUCT_EXAMPLES = [
 ];
 
 const POSITIVE_FOLLOW_UP = /^(sim|quero|pode|pode sim|isso|isso mesmo|me explica|explica|fala mais|me fala mais|detalhe|detalhes)$/;
+const DIRECT_REPLY_FOLLOW_UP = /^(apenas responder|so responder|só responder|responde|responda|responde direto|responda direto|direto|sem explicar|sem explicacao|sem enrolar)$/;
 
 export function getCatalogReply(text, options = {}) {
   const normalized = normalizeText(text);
@@ -180,12 +185,24 @@ export function getCatalogReply(text, options = {}) {
     return buildFollowUpReply(options.lastTopic, { greeting, companyName, siteUrl });
   }
 
-  if (wantsServicesOverview(normalized)) {
-    return buildServicesOverview({ greeting, companyName });
+  if (DIRECT_REPLY_FOLLOW_UP.test(normalized)) {
+    if (options.lastTopic) {
+      return buildDirectFollowUpReply(options.lastTopic, { greeting, companyName, siteUrl });
+    }
+
+    return `${greeting}claro. Vou responder direto. Voce quer falar sobre produto, servico, orcamento ou atendimento?`;
   }
 
   if (wantsTopGestor(normalized)) {
     return buildServiceReply(getServiceById('crm-estoque'), { greeting, companyName });
+  }
+
+  if (service) {
+    return buildServiceReply(service, { greeting, companyName });
+  }
+
+  if (wantsServicesOverview(normalized)) {
+    return buildServicesOverview({ greeting, companyName });
   }
 
   if (wantsGenericSystem(normalized)) {
@@ -194,10 +211,6 @@ export function getCatalogReply(text, options = {}) {
       'O app entra quando voce precisa de algo personalizado para clientes ou equipe. O CRM/estoque entra quando o foco e organizar clientes, produtos, pedidos e vendas.',
       'Me diga qual processo voce quer organizar que eu te oriento pelo caminho certo.'
     ].join('\n\n');
-  }
-
-  if (service) {
-    return buildServiceReply(service, { greeting, companyName });
   }
 
   if (wantsProductsOverview(normalized)) {
@@ -244,6 +257,25 @@ function buildFollowUpReply(topic, context) {
   }
 
   return null;
+}
+
+function buildDirectFollowUpReply(topic, context) {
+  const service = getServiceById(topic);
+  if (service) {
+    return [
+      `${context.greeting}direto ao ponto: ${service.title} ajuda nesse caso.`,
+      service.qualify
+    ].join('\n\n');
+  }
+
+  if (topic === 'products') return buildProductsReply(context);
+  if (topic === 'services') return buildServicesOverview(context);
+
+  if (topic === 'systems') {
+    return `${context.greeting}direto: para sistema, me diga se voce quer controlar clientes, estoque, pedidos, financeiro ou atendimento.`;
+  }
+
+  return `${context.greeting}direto: me diga o que voce precisa resolver que eu te oriento.`;
 }
 
 function buildServicesOverview({ greeting, companyName }) {

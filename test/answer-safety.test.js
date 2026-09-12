@@ -36,6 +36,24 @@ test('bloqueia roteiro exposto para cliente', () => {
   assert.doesNotMatch(reply, /Cliente:/);
 });
 
+test('bloqueia sugestao de resposta gerada pela IA local', () => {
+  const reply = sanitizeAnswer(
+    [
+      'Desculpe, mas parece que ha um pequeno problema. A mensagem "apenas responder" nao e uma resposta.',
+      'Aqui vai uma sugestao de como reescrever a mensagem:',
+      'Mensagem do cliente: apenas responder',
+      'Robo: ThiarlesDias, posso te ajudar.'
+    ].join('\n\n'),
+    {
+      ...options,
+      inputText: 'apenas responder'
+    }
+  );
+
+  assert.match(reply, /posso te ajudar/);
+  assert.doesNotMatch(reply, /Mensagem do cliente|Robo:|sugestao/i);
+});
+
 test('fallback de servico mostra catalogo resumido', () => {
   const reply = buildSafeFallback(options);
 

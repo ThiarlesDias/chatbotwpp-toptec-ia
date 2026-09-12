@@ -139,7 +139,10 @@ quem e voce?
 o que voces fazem?
 voces fazem site?
 quero robo para whatsapp
+servico do whats
+whats
 sim
+apenas responder
 sistema de estoque
 produtos
 quanto custa um site?

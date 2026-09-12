@@ -1,15 +1,21 @@
 export function sanitizeAnswer(answer, options = {}) {
   const text = String(answer || '').trim();
+  const lowered = stripAccents(text.toLowerCase());
   const normalized = normalizeText(text);
 
   if (
     !text ||
-    normalized.includes('cliente:') ||
-    normalized.includes('robo:') ||
+    /\b(cliente|robo|robo|bot|mensagem do cliente)\s*:/.test(lowered) ||
     normalized.includes('system prompt') ||
     normalized.includes('prompt') ||
     normalized.includes('regras internas') ||
     normalized.includes('aqui esta uma possivel continuacao') ||
+    normalized.includes('aqui vai uma sugestao') ||
+    normalized.includes('sugestao de como responder') ||
+    normalized.includes('parece que ha um pequeno problema') ||
+    normalized.includes('nao e uma resposta') ||
+    normalized.includes('resposta deve ser') ||
+    normalized.includes('resposta de forma natural') ||
     normalized.includes('nao posso fornecer') ||
     normalized.includes('nao posso responder') ||
     normalized.includes('nao consigo responder') ||
@@ -52,4 +58,10 @@ function normalizeText(text) {
     .replace(/[^\w\s?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function stripAccents(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
