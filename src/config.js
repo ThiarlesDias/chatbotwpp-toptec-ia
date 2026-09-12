@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 export const config = {
   botName: process.env.BOT_NAME || 'ChatbotWpp',
+  botDisplayName: process.env.BOT_DISPLAY_NAME || 'Charlie',
   companyName: process.env.COMPANY_NAME || 'TOPTEC DIGITAL',
   officialPhone: process.env.OFFICIAL_PHONE || '43991939187',
   adminPhone: process.env.ADMIN_PHONE || '43999612132',

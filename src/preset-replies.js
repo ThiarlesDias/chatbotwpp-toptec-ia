@@ -2,14 +2,15 @@ export function getPresetReply(text, companyName, options = {}) {
   const normalized = normalizeText(text);
   const name = options.customerName;
   const greeting = name ? `${name}, ` : '';
+  const botDisplayName = options.botDisplayName || 'Charlie';
   const activePhone = options.activeRobotPhone || options.officialPhone || '43991939187';
 
   if (isGreeting(normalized)) {
-    return `${greeting}tudo bem? Sou o robo da ${companyName}. Me conta o que voce precisa: produto, servico, orcamento ou suporte?`;
+    return `${greeting}tudo bem? Sou o ${botDisplayName}, robo da ${companyName}. Me conta o que voce precisa: produto, servico, orcamento ou suporte?`;
   }
 
   if (isIdentityQuestion(normalized)) {
-    return `${greeting}eu sou o robo da ${companyName}. Posso apresentar nossos produtos e servicos, tirar duvidas iniciais e ajudar com orcamentos.`;
+    return `${greeting}eu sou o ${botDisplayName}, robo da ${companyName}. Posso apresentar nossos produtos e servicos, tirar duvidas iniciais e ajudar com orcamentos.`;
   }
 
   if (isBudgetRequest(normalized)) {

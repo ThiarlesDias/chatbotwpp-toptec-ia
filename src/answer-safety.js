@@ -26,10 +26,11 @@ export function sanitizeAnswer(answer, options = {}) {
 export function buildSafeFallback(options = {}) {
   const greeting = options.customerName ? `${options.customerName}, ` : '';
   const companyName = options.companyName || 'TOPTEC DIGITAL';
+  const botDisplayName = options.botDisplayName || 'Charlie';
   const normalized = normalizeText(options.inputText);
 
   if (/^(oi|ola|opa|bom dia|boa tarde|boa noite|e ai|salve)(\s|$)/.test(normalized)) {
-    return `${greeting}tudo bem? Sou o robo da ${companyName}. Me conta se voce precisa de produto, servico, orcamento ou suporte.`;
+    return `${greeting}tudo bem? Sou o ${botDisplayName}, robo da ${companyName}. Me conta se voce precisa de produto, servico, orcamento ou suporte.`;
   }
 
   if (/\bsite\b|\bservico\b|\bservicos\b|\bsistema\b|\bestoque\b|\bcrm\b|\bwhatsapp\b|\bproduto\b/.test(normalized)) {

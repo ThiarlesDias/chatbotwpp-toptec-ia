@@ -4,6 +4,7 @@ import { buildSafeFallback, sanitizeAnswer } from '../src/answer-safety.js';
 
 const options = {
   customerName: 'ThiarlesDias',
+  botDisplayName: 'Charlie',
   companyName: 'TOPTEC DIGITAL',
   inputText: 'Servico'
 };
@@ -39,4 +40,13 @@ test('fallback de servico mostra catalogo resumido', () => {
   const reply = buildSafeFallback(options);
 
   assert.match(reply, /sites, aplicativos, automacao WhatsApp/);
+});
+
+test('fallback de saudacao se apresenta como Charlie', () => {
+  const reply = buildSafeFallback({
+    ...options,
+    inputText: 'Oi'
+  });
+
+  assert.match(reply, /Sou o Charlie, robo da TOPTEC DIGITAL/);
 });

@@ -9,7 +9,7 @@ Por padrao ele usa Ollama, mas tambem tem suporte para LM Studio.
 - Atende conversas individuais do WhatsApp.
 - Ignora grupos.
 - Usa o nome de exibicao do contato quando o WhatsApp informa.
-- Se apresenta como robo da TOPTEC DIGITAL.
+- Se apresenta como Charlie, robo da TOPTEC DIGITAL.
 - Responde sobre os servicos e produtos oficiais da TOPTEC DIGITAL.
 - Encaminha pedidos de orcamento para o admin configurado.
 - Transcreve audio localmente com Whisper dentro do container.
@@ -63,6 +63,7 @@ Configuracoes principais:
 
 ```env
 BOT_NAME=Robo TOPTEC DIGITAL
+BOT_DISPLAY_NAME=Charlie
 COMPANY_NAME=TOPTEC DIGITAL
 OFFICIAL_PHONE=43991939187
 ADMIN_PHONE=43999612132
@@ -156,7 +157,7 @@ quero automatizar meu whatsapp
 O esperado e que o bot:
 
 - Responda usando o nome do contato.
-- Diga que e robo da TOPTEC DIGITAL quando perguntarem.
+- Diga que e o Charlie, robo da TOPTEC DIGITAL, quando perguntarem.
 - Liste servicos oficiais sem inventar.
 - Pergunte dados para orcamento sem passar preco fechado.
 - Use o assunto anterior quando o cliente responder "sim".

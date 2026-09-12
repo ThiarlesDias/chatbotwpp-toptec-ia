@@ -115,6 +115,7 @@ async function handleIncomingMessage(socket, message, remoteJid) {
     const answer = sanitizeAnswer(rawAnswer, {
       customerName,
       companyName: config.companyName,
+      botDisplayName: config.botDisplayName,
       inputText: input.text
     });
     await socket.sendMessage(remoteJid, { text: answer });
@@ -132,6 +133,7 @@ async function handleIncomingMessage(socket, message, remoteJid) {
       text: buildSafeFallback({
         customerName,
         companyName: config.companyName,
+        botDisplayName: config.botDisplayName,
         inputText: input.text
       })
     });
@@ -172,7 +174,7 @@ async function notifyAdmin(socket, customerJid, text, customerName) {
 
   await socket.sendMessage(adminJid, {
     text: [
-      `Novo pedido de orcamento pelo robo da ${config.companyName}.`,
+      `Novo pedido de orcamento pelo ${config.botDisplayName}, robo da ${config.companyName}.`,
       `Cliente: ${customerName || 'Nome nao informado pelo WhatsApp'}`,
       `WhatsApp: +${customerPhone}`,
       `Mensagem: ${text}`

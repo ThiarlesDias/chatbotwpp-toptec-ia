@@ -4,6 +4,7 @@ import { getPresetReply, shouldNotifyAdmin } from '../src/preset-replies.js';
 
 const options = {
   customerName: 'ThiarlesDias',
+  botDisplayName: 'Charlie',
   officialPhone: '43991939187',
   activeRobotPhone: '43991939187',
   siteUrl: 'https://toptecdigital.com'
@@ -13,13 +14,13 @@ test('cumprimenta usando o nome do contato', () => {
   const reply = getPresetReply('oi', 'TOPTEC DIGITAL', options);
 
   assert.match(reply, /^ThiarlesDias, tudo bem\?/);
-  assert.match(reply, /robo da TOPTEC DIGITAL/);
+  assert.match(reply, /Sou o Charlie, robo da TOPTEC DIGITAL/);
 });
 
-test('se apresenta como robo da TOPTEC DIGITAL', () => {
+test('se apresenta como Charlie, robo da TOPTEC DIGITAL', () => {
   const reply = getPresetReply('quem e voce?', 'TOPTEC DIGITAL', options);
 
-  assert.match(reply, /robo da TOPTEC DIGITAL/);
+  assert.match(reply, /eu sou o Charlie, robo da TOPTEC DIGITAL/);
   assert.match(reply, /produtos e servicos/);
 });
 
