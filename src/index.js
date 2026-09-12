@@ -7,9 +7,17 @@ import { Boom } from '@hapi/boom';
 import Pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { askLocalAi } from './ai.js';
+import { normalizeAudioTranscript } from './audio-normalizer.js';
+import { detectCatalogTopic, getCatalogReply } from './catalog.js';
 import { config } from './config.js';
 import { getMessageText, getMessageType, isGroupMessage } from './message.js';
 import { getPresetReply, shouldNotifyAdmin } from './preset-replies.js';
+import {
+  getSessionContext,
+  rememberBotMessage,
+  rememberCustomerMessage,
+  rememberTopic
+} from './session.js';
 import { transcribeAudioMessage } from './transcribe.js';
 
 const logger = Pino({ level: 'silent' });
@@ -83,19 +91,32 @@ async function handleIncomingMessage(socket, message, remoteJid) {
     return;
   }
 
+  rememberCustomerMessage(remoteJid, input.text);
+  const sessionContext = getSessionContext(remoteJid);
+
   try {
     await socket.sendPresenceUpdate('composing', remoteJid);
 
     const rawAnswer = getPresetReply(input.text, config.companyName, {
       ...config,
       customerName
+    }) || getCatalogReply(input.text, {
+      ...config,
+      customerName,
+      lastTopic: sessionContext.lastTopic
     }) || await askLocalAi(input.text, {
       customerName,
-      fromAudio: input.fromAudio
+      fromAudio: input.fromAudio,
+      history: sessionContext.history,
+      lastTopic: sessionContext.lastTopic
     });
 
     const answer = sanitizeAnswer(rawAnswer, customerName, input.text);
     await socket.sendMessage(remoteJid, { text: answer });
+    rememberBotMessage(remoteJid, answer);
+
+    const detectedTopic = detectCatalogTopic(input.text) || sessionContext.lastTopic;
+    rememberTopic(remoteJid, detectedTopic);
 
     if (shouldNotifyAdmin(input.text)) {
       await notifyAdmin(socket, remoteJid, input.text, customerName);
@@ -117,7 +138,13 @@ async function getAudioText(socket, message, remoteJid, customerName) {
 
     if (transcript) {
       console.log(`Audio transcrito de ${remoteJid}: ${transcript}`);
-      return { text: transcript, fromAudio: true };
+      const normalizedTranscript = normalizeAudioTranscript(transcript);
+
+      if (normalizedTranscript !== transcript) {
+        console.log(`Audio normalizado de ${remoteJid}: ${normalizedTranscript}`);
+      }
+
+      return { text: normalizedTranscript, fromAudio: true };
     }
   } catch (error) {
     console.error('Erro ao transcrever audio:', error);

@@ -13,7 +13,13 @@ export function getPresetReply(text, companyName, options = {}) {
   }
 
   if (isBudgetRequest(normalized)) {
-    return `${greeting}para orcamento, o valor depende do que voce precisa. Me envie cidade/bairro, servico desejado, objetivo e melhor horario para retorno. Vou encaminhar para o admin da ${companyName}.`;
+    if (isProductQuestion(normalized)) {
+      return `${greeting}os precos e disponibilidade dos produtos podem mudar. Veja a loja oficial em ${options.siteUrl || 'https://toptecdigital.com'}/produtos/ ou me diga qual produto voce procura que eu tento te orientar.`;
+    }
+
+    const serviceHint = getServiceHint(normalized);
+    const subject = serviceHint ? ` de ${serviceHint}` : '';
+    return `${greeting}o valor${subject} depende do escopo. Me envie cidade/bairro, objetivo, prazo desejado e melhor horario para retorno. Vou encaminhar para o admin da ${companyName}.`;
   }
 
   if (isHumanRequest(normalized)) {
@@ -41,6 +47,22 @@ function isIdentityQuestion(normalized) {
 
 function isBudgetRequest(normalized) {
   return /\borcamento\b|\bpreco\b|\bvalor\b|\bquanto custa\b|\bcontratar\b|\bfechar\b/.test(normalized);
+}
+
+function isProductQuestion(normalized) {
+  return /\bproduto(s)?\b|\bloja\b|\bcomprar\b|\bcarregador\b|\bfone\b|\bsmartwatch\b|\bcontrole\b|\bconsole\b/.test(normalized);
+}
+
+function getServiceHint(normalized) {
+  if (/\bsite(s)?\b|\blanding\b|\bloja virtual\b|\bcatalogo\b/.test(normalized)) return 'site';
+  if (/\bapp(s)?\b|\baplicativo\b/.test(normalized)) return 'aplicativo';
+  if (/\bwhatsapp\b|\bwpp\b|\brobo\b|\bchatbot\b|\bautomacao\b/.test(normalized)) return 'automacao WhatsApp';
+  if (/\bmarketing\b|\banuncio\b|\bcampanha\b|\btrafego\b/.test(normalized)) return 'marketing digital';
+  if (/\binfra\b|\binfraestrutura\b|\brede\b|\bservidor\b|\bcomputador\b/.test(normalized)) return 'infraestrutura de TI';
+  if (/\bconsultoria\b|\bdiagnostico\b/.test(normalized)) return 'consultoria em TI';
+  if (/\bcrm\b|\bestoque\b|\btopgestor\b|\bpedido\b/.test(normalized)) return 'CRM e controle de estoque';
+
+  return '';
 }
 
 function isHumanRequest(normalized) {
