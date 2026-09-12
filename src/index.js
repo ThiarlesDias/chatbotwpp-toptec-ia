@@ -6,6 +6,7 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import Pino from 'pino';
 import qrcode from 'qrcode-terminal';
+import { buildSafeFallback, sanitizeAnswer } from './answer-safety.js';
 import { askLocalAi } from './ai.js';
 import { normalizeAudioTranscript } from './audio-normalizer.js';
 import { detectCatalogTopic, getCatalogReply } from './catalog.js';
@@ -111,7 +112,11 @@ async function handleIncomingMessage(socket, message, remoteJid) {
       lastTopic: sessionContext.lastTopic
     });
 
-    const answer = sanitizeAnswer(rawAnswer, customerName, input.text);
+    const answer = sanitizeAnswer(rawAnswer, {
+      customerName,
+      companyName: config.companyName,
+      inputText: input.text
+    });
     await socket.sendMessage(remoteJid, { text: answer });
     rememberBotMessage(remoteJid, answer);
 
@@ -124,7 +129,11 @@ async function handleIncomingMessage(socket, message, remoteJid) {
   } catch (error) {
     console.error('Erro ao responder mensagem:', error);
     await socket.sendMessage(remoteJid, {
-      text: buildSafeFallback(customerName, input.text)
+      text: buildSafeFallback({
+        customerName,
+        companyName: config.companyName,
+        inputText: input.text
+      })
     });
   } finally {
     await socket.sendPresenceUpdate('paused', remoteJid);
@@ -157,42 +166,6 @@ async function getAudioText(socket, message, remoteJid, customerName) {
   return { text: '', fromAudio: true };
 }
 
-function sanitizeAnswer(answer, customerName, inputText) {
-  const text = String(answer || '').trim();
-  const normalized = normalize(text);
-
-  if (
-    !text ||
-    normalized.includes('cliente:') ||
-    normalized.includes('robo:') ||
-    normalized.includes('system prompt') ||
-    normalized.includes('prompt') ||
-    normalized.includes('regras internas') ||
-    normalized.includes('nao posso fornecer informacoes') ||
-    normalized.includes('nao tenho informacoes') ||
-    normalized.includes('nao tenho informacao')
-  ) {
-    return buildSafeFallback(customerName, inputText);
-  }
-
-  return text.replace(/^\s*["']|["']\s*$/g, '').trim();
-}
-
-function buildSafeFallback(customerName, inputText) {
-  const greeting = customerName ? `${customerName}, ` : '';
-  const normalized = normalize(inputText);
-
-  if (/^(oi|ola|opa|bom dia|boa tarde|boa noite|e ai|salve)(\s|$)/.test(normalized)) {
-    return `${greeting}tudo bem? Sou o robo da ${config.companyName}. Me conta se voce precisa de produto, servico, orcamento ou suporte.`;
-  }
-
-  if (/\bsite\b|\bservico\b|\bservicos\b|\bsistema\b|\bestoque\b|\bcrm\b|\bwhatsapp\b|\bproduto\b/.test(normalized)) {
-    return `${greeting}posso te ajudar com isso. Pelo site oficial, a ${config.companyName} trabalha com sites, aplicativos, automacao WhatsApp, marketing digital, infraestrutura de TI, consultoria em TI e CRM/controle de estoque. Qual ponto voce quer ver primeiro?`;
-  }
-
-  return `${greeting}posso te ajudar. Me explica em uma frase o que voce precisa, que eu tento orientar e encaminhar para a ${config.companyName} quando fizer sentido.`;
-}
-
 async function notifyAdmin(socket, customerJid, text, customerName) {
   const adminJid = toBrazilianWhatsappJid(config.adminPhone);
   const customerPhone = customerJid.split('@')[0];
@@ -216,16 +189,6 @@ function toBrazilianWhatsappJid(phone) {
   const digits = String(phone).replace(/\D/g, '');
   const withCountry = digits.startsWith('55') ? digits : `55${digits}`;
   return `${withCountry}@s.whatsapp.net`;
-}
-
-function normalize(text) {
-  return String(text || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\w\s?]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 startBot().catch((error) => {

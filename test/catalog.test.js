@@ -20,6 +20,15 @@ test('lista todos os servicos oficiais quando o cliente pergunta o que faz', () 
   assert.match(reply, /CRM e Controle de Estoque/);
 });
 
+test('servico sozinho lista o catalogo oficial', () => {
+  const reply = getCatalogReply('Servico', baseOptions);
+
+  assert.match(reply, /pelo site oficial/);
+  assert.match(reply, /Desenvolvimento de Sites/);
+  assert.match(reply, /Automacao WhatsApp/);
+  assert.match(reply, /CRM e Controle de Estoque/);
+});
+
 test('responde sobre desenvolvimento de sites com qualificacao comercial', () => {
   const reply = getCatalogReply('voces fazem site?', baseOptions);
 

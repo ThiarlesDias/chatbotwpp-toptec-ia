@@ -45,6 +45,21 @@ test('pedido de humano informa telefone ativo', () => {
   assert.match(reply, /43991939187/);
 });
 
+test('reacao de confusao nao cai na IA local', () => {
+  const reply = getPresetReply('Como assim?', 'TOPTEC DIGITAL', options);
+
+  assert.match(reply, /desculpa, respondi mal/);
+  assert.match(reply, /servicos, produtos, orcamento ou atendimento humano/);
+});
+
+test('resposta negativa ou encerramento fecha sem loop', () => {
+  const noReply = getPresetReply('Nao so isso', 'TOPTEC DIGITAL', options);
+  const okReply = getPresetReply('Ok', 'TOPTEC DIGITAL', options);
+
+  assert.match(noReply, /combinado/);
+  assert.match(okReply, /combinado/);
+});
+
 test('notifica admin somente quando parece pedido comercial', () => {
   assert.equal(shouldNotifyAdmin('quero orcamento'), true);
   assert.equal(shouldNotifyAdmin('oi'), false);

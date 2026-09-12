@@ -167,7 +167,7 @@ const FEATURED_PRODUCT_EXAMPLES = [
   'organizador de ferramentas'
 ];
 
-const POSITIVE_FOLLOW_UP = /^(sim|quero|pode|pode sim|isso|isso mesmo|me explica|explica|fala mais|me fala mais|detalhe|detalhes|ok|beleza)$/;
+const POSITIVE_FOLLOW_UP = /^(sim|quero|pode|pode sim|isso|isso mesmo|me explica|explica|fala mais|me fala mais|detalhe|detalhes)$/;
 
 export function getCatalogReply(text, options = {}) {
   const normalized = normalizeText(text);
@@ -282,6 +282,8 @@ function getServiceById(id) {
 
 function wantsServicesOverview(normalized) {
   return (
+    /^(servico|servicos)$/.test(normalized) ||
+    /\bservico(s)?\b/.test(normalized) ||
     /\bquais servicos\b/.test(normalized) ||
     /\bque servicos\b/.test(normalized) ||
     /\bque tipo de servico/.test(normalized) ||

@@ -8,7 +8,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "test": "node --test",
-    "check": "node --check src/index.js && node --check src/ai.js && node --check src/audio-normalizer.js && node --check src/catalog.js && node --check src/preset-replies.js && node --check src/session.js && node --check src/transcribe.js",
+    "check": "node --check src/index.js && node --check src/ai.js && node --check src/answer-safety.js && node --check src/audio-normalizer.js && node --check src/catalog.js && node --check src/preset-replies.js && node --check src/session.js && node --check src/transcribe.js",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop chatbotwpp-vm"
   },

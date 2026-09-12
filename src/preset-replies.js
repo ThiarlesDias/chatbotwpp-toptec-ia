@@ -26,6 +26,14 @@ export function getPresetReply(text, companyName, options = {}) {
     return `${greeting}claro. Para falar com o atendimento da ${companyName}, chame no WhatsApp: ${activePhone}.`;
   }
 
+  if (isConfusionReaction(normalized)) {
+    return `${greeting}desculpa, respondi mal. Posso te mostrar servicos, produtos, orcamento ou atendimento humano. Sobre qual deles voce quer falar?`;
+  }
+
+  if (isDoneOrNegative(normalized)) {
+    return `${greeting}combinado. Se precisar, me chama por aqui e eu te ajudo com produtos, servicos, orcamento ou suporte da ${companyName}.`;
+  }
+
   if (isOnlyQuestionMarks(text)) {
     return `${greeting}acho que nao entendi. Pode me mandar sua duvida em uma frase?`;
   }
@@ -67,6 +75,15 @@ function getServiceHint(normalized) {
 
 function isHumanRequest(normalized) {
   return /\bfalar com atendente\b|\bfalar com humano\b|\batendente humano\b|\bsuporte humano\b/.test(normalized);
+}
+
+function isConfusionReaction(normalized) {
+  const clean = normalized.replace(/\?+$/g, '').trim();
+  return /^(como assim|oxe|vish|ue|ué|eita|que isso|nao entendi|n entendi|confuso|estranho)$/.test(clean);
+}
+
+function isDoneOrNegative(normalized) {
+  return /^(nao|nao obrigado|nao obrigada|n|ok|okay|blz|beleza|ta bom|tudo certo|so isso|nao so isso|nao, so isso)$/.test(normalized);
 }
 
 function isOnlyQuestionMarks(text) {
